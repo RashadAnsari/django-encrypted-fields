@@ -4,23 +4,28 @@ from django.conf import settings
 from django.db import models
 from django.utils.functional import cached_property
 
-from cryptography.fernet import Fernet
+from cryptography.fernet import Fernet, InvalidToken
 
 
 class BaseEncryptedField:
     @cached_property
-    def key(self):
-        return settings.DATABASE_ENCRYPTION_KEY.encode("utf-8")
+    def keys(self):
+        return [key.encode("utf-8") for key in settings.MODEL_ENCRYPTION_KEYS]
 
     @cached_property
-    def fernet(self):
-        return Fernet(self.key)
+    def fernet_keys(self):
+        return [Fernet(key) for key in self.keys]
 
     def _encrypt(self, value) -> str:
-        return self.fernet.encrypt(bytes(value, "utf-8")).decode("utf-8")
+        return self.fernet_keys[0].encrypt(bytes(value, "utf-8")).decode("utf-8")
 
     def _decrypt(self, value) -> str:
-        return self.fernet.decrypt(bytes(value, "utf-8")).decode("utf-8")
+        for fernet in self.fernet_keys:
+            try:
+                return fernet.decrypt(bytes(value, "utf-8")).decode("utf-8")
+            except InvalidToken:
+                continue
+        raise ValueError("Decryption failed for all provided keys.")
 
 
 class EncryptedTextField(BaseEncryptedField, models.TextField):
