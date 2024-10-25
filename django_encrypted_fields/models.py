@@ -27,6 +27,12 @@ class BaseEncryptedField:
                 continue
         raise ValueError("Decryption failed for all provided keys.")
 
+    def clean(self, value, model_instance):
+        self._already_decrypted = True
+        return_value = super().clean(value, model_instance)
+        del self._already_decrypted
+        return return_value
+
 
 class EncryptedTextField(BaseEncryptedField, models.TextField):
     def get_prep_value(self, value):
@@ -44,12 +50,6 @@ class EncryptedTextField(BaseEncryptedField, models.TextField):
             return value
 
         return self._decrypt(value)
-
-    def clean(self, value, model_instance):
-        self._already_decrypted = True
-        return_value = super().clean(value, model_instance)
-        del self._already_decrypted
-        return return_value
 
 
 class EncryptedJSONField(BaseEncryptedField, models.JSONField):
@@ -125,9 +125,3 @@ class EncryptedJSONField(BaseEncryptedField, models.JSONField):
         if self.encrypt_all:
             return self._encrypt_or_decrypt_all(value, encrypt=False)
         return self._encrypt_or_decrypt_value(json.loads(value), encrypt=False)
-
-    def clean(self, value, model_instance):
-        self._already_decrypted = True
-        return_value = super().clean(value, model_instance)
-        del self._already_decrypted
-        return return_value
